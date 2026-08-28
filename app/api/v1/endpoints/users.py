@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import select
 
-from app.deps import CurrentUser, SessionDep, require_admin
+from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.models.user import User, utcnow
 from app.schemas.user import RoleUpdate, UserRead, UserUpdate
 
@@ -60,4 +60,3 @@ async def update_role(user_id: UUID, data: RoleUpdate, _: AdminUser, session: Se
     await session.commit()
     await session.refresh(user)
     return user
-

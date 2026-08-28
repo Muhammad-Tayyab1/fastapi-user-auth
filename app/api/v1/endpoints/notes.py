@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, Response, status
 from sqlmodel import select
 
-from app.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, SessionDep
 from app.models.note import Note
 from app.models.user import utcnow
 from app.schemas.note import NoteCreate, NoteRead, NoteUpdate

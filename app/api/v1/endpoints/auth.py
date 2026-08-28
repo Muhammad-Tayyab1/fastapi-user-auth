@@ -6,7 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, status
 from app.core.config import settings
 from app.core.rate_limit import client_ip, rate_limiter
 from app.core.security import create_token, hash_password, verify_password
-from app.deps import SessionDep
+from app.api.deps import SessionDep
 from app.models.otp import OTPPurpose
 from app.models.user import User, utcnow
 from app.schemas.auth import (ForgotPasswordRequest, LoginRequest, MessageResponse, RefreshRequest,

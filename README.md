@@ -40,12 +40,13 @@ An asynchronous REST API for user authentication and account management, built w
 
 ```text
 app/
+├── api/
+│   ├── deps.py      # Shared authentication and authorization dependencies
+│   └── v1/          # Versioned router and endpoint modules
 ├── core/            # Configuration, database, security, rate limiting
 ├── models/          # User, OTP, and Note database models
-├── routers/         # Auth, user, and note HTTP endpoints
 ├── schemas/         # Request and response models
 ├── services/        # Email, OTP, and user business logic
-├── deps.py          # Authentication and authorization dependencies
 └── main.py          # FastAPI application
 alembic/
 └── versions/        # Versioned database migrations
@@ -111,34 +112,34 @@ When `RESEND_API_KEY` is empty, email delivery is skipped. The OTP is still stor
 
 | Method | Endpoint | Auth | Purpose |
 | --- | --- | --- | --- |
-| `POST` | `/auth/register` | Public | Register or restart an unverified registration |
-| `POST` | `/auth/verify-otp` | Public | Verify registration and issue tokens |
-| `POST` | `/auth/resend-otp` | Public | Replace and resend the registration OTP |
-| `POST` | `/auth/login` | Public | Authenticate and issue tokens |
-| `POST` | `/auth/refresh` | Refresh token | Issue a new token pair |
-| `POST` | `/auth/forgot-password` | Public | Send a password-reset OTP |
-| `POST` | `/auth/reset-password` | Public | Validate the OTP and replace the password |
+| `POST` | `/api/v1/auth/register` | Public | Register or restart an unverified registration |
+| `POST` | `/api/v1/auth/verify-otp` | Public | Verify registration and issue tokens |
+| `POST` | `/api/v1/auth/resend-otp` | Public | Replace and resend the registration OTP |
+| `POST` | `/api/v1/auth/login` | Public | Authenticate and issue tokens |
+| `POST` | `/api/v1/auth/refresh` | Refresh token | Issue a new token pair |
+| `POST` | `/api/v1/auth/forgot-password` | Public | Send a password-reset OTP |
+| `POST` | `/api/v1/auth/reset-password` | Public | Validate the OTP and replace the password |
 
 ### Users
 
 | Method | Endpoint | Auth | Purpose |
 | --- | --- | --- | --- |
-| `GET` | `/users/me` | User | Read the current profile |
-| `PATCH` | `/users/me` | User | Update the current profile |
-| `DELETE` | `/users/me` | User | Soft-delete the current account |
-| `GET` | `/users/` | Admin | List users with pagination |
-| `GET` | `/users/{user_id}` | Admin | Read a user |
-| `PATCH` | `/users/{user_id}/role` | Admin | Set the `user` or `admin` role |
+| `GET` | `/api/v1/users/me` | User | Read the current profile |
+| `PATCH` | `/api/v1/users/me` | User | Update the current profile |
+| `DELETE` | `/api/v1/users/me` | User | Soft-delete the current account |
+| `GET` | `/api/v1/users/` | Admin | List users with pagination |
+| `GET` | `/api/v1/users/{user_id}` | Admin | Read a user |
+| `PATCH` | `/api/v1/users/{user_id}/role` | Admin | Set the `user` or `admin` role |
 
 ### Notes
 
 | Method | Endpoint | Auth | Purpose |
 | --- | --- | --- | --- |
-| `POST` | `/notes/` | User | Create a note |
-| `GET` | `/notes/` | User | List the current user's notes |
-| `GET` | `/notes/{note_id}` | User | Read an owned note |
-| `PATCH` | `/notes/{note_id}` | User | Update an owned note |
-| `DELETE` | `/notes/{note_id}` | User | Delete an owned note |
+| `POST` | `/api/v1/notes/` | User | Create a note |
+| `GET` | `/api/v1/notes/` | User | List the current user's notes |
+| `GET` | `/api/v1/notes/{note_id}` | User | Read an owned note |
+| `PATCH` | `/api/v1/notes/{note_id}` | User | Update an owned note |
+| `DELETE` | `/api/v1/notes/{note_id}` | User | Delete an owned note |
 
 Access to another user's note returns `404`, preventing ownership information from being disclosed.
 
@@ -147,7 +148,7 @@ Access to another user's note returns `404`, preventing ownership information fr
 Register:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/auth/register \
+curl -X POST http://127.0.0.1:8000/api/v1/auth/register \
   -H 'Content-Type: application/json' \
   -d '{"email":"person@example.com","password":"a-strong-password","full_name":"Example User"}'
 ```
@@ -155,7 +156,7 @@ curl -X POST http://127.0.0.1:8000/auth/register \
 Verify the emailed OTP:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/auth/verify-otp \
+curl -X POST http://127.0.0.1:8000/api/v1/auth/verify-otp \
   -H 'Content-Type: application/json' \
   -d '{"email":"person@example.com","code":"123456"}'
 ```
@@ -163,14 +164,14 @@ curl -X POST http://127.0.0.1:8000/auth/verify-otp \
 Use the returned access token on protected endpoints:
 
 ```bash
-curl http://127.0.0.1:8000/users/me \
+curl http://127.0.0.1:8000/api/v1/users/me \
   -H "Authorization: Bearer ACCESS_TOKEN"
 ```
 
 Create a note:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/notes/ \
+curl -X POST http://127.0.0.1:8000/api/v1/notes/ \
   -H "Authorization: Bearer ACCESS_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"title":"My first note","content":"Private user content"}'
@@ -203,7 +204,7 @@ GitHub Actions runs the tests and validates offline migration generation on ever
 
 ## Administrator setup
 
-Registration always creates the `user` role. Promote the first administrator through a trusted database operation or deployment script; there is intentionally no public admin-creation endpoint. An administrator can then use `PATCH /users/{user_id}/role` for later role changes.
+Registration always creates the `user` role. Promote the first administrator through a trusted database operation or deployment script; there is intentionally no public admin-creation endpoint. An administrator can then use `PATCH /api/v1/users/{user_id}/role` for later role changes.
 
 ## Security and production
 
