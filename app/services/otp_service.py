@@ -29,8 +29,10 @@ async def validate_otp(session: AsyncSession, user_id: UUID, purpose: OTPPurpose
     result = await session.exec(select(OTP).where(OTP.user_id == user_id, OTP.purpose == purpose.value,
                                                   OTP.is_used.is_(False)).order_by(OTP.created_at.desc()))
     otp = result.first()
-    now = datetime.now(UTC)
-    if not otp or otp.attempts >= 5 or otp.expires_at < now:
+    if not otp or otp.attempts >= 5:
+        return None
+    expires_at = otp.expires_at if otp.expires_at.tzinfo else otp.expires_at.replace(tzinfo=UTC)
+    if expires_at < datetime.now(UTC):
         return None
     if not secrets.compare_digest(otp.code, code):
         otp.attempts += 1
@@ -41,4 +43,3 @@ async def validate_otp(session: AsyncSession, user_id: UUID, purpose: OTPPurpose
     session.add(otp)
     await session.commit()
     return otp
-

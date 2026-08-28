@@ -1,4 +1,5 @@
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -17,8 +18,8 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], sessio
                                  headers={"WWW-Authenticate": "Bearer"})
     try:
         payload = decode_token(token, "access")
-        user = await session.get(User, payload["sub"])
-    except (ValueError, TypeError):
+        user = await session.get(User, UUID(payload["sub"]))
+    except (ValueError, TypeError, KeyError):
         raise unauthorized
     if not user or not user.is_active:
         raise unauthorized
@@ -32,4 +33,3 @@ async def require_admin(user: CurrentUser) -> User:
     if user.role != "admin":
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin access required")
     return user
-

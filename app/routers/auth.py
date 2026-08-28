@@ -1,10 +1,10 @@
-from collections import defaultdict, deque
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
+from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, status
-from sqlmodel import select
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, status
 
 from app.core.config import settings
+from app.core.rate_limit import client_ip, rate_limiter
 from app.core.security import create_token, hash_password, verify_password
 from app.deps import SessionDep
 from app.models.otp import OTPPurpose
@@ -16,7 +16,6 @@ from app.services.otp_service import create_otp, validate_otp
 from app.services.user_service import get_user_by_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-resend_attempts: dict[str, deque[datetime]] = defaultdict(deque)
 
 
 def token_pair(user: User) -> TokenResponse:
@@ -24,19 +23,17 @@ def token_pair(user: User) -> TokenResponse:
                          refresh_token=create_token(str(user.id), "refresh"))
 
 
-def check_resend_limit(email: str) -> None:
-    attempts = resend_attempts[email]
-    cutoff = datetime.now(UTC) - timedelta(hours=1)
-    while attempts and attempts[0] < cutoff:
-        attempts.popleft()
-    if len(attempts) >= settings.otp_max_resend_per_hour:
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many requests")
-    attempts.append(datetime.now(UTC))
+def limit(request: Request, action: str, email: str, maximum: int, window: timedelta) -> None:
+    # Check both dimensions so one IP cannot rotate email addresses and one account
+    # cannot be attacked cheaply from a single address.
+    rate_limiter.check(f"{action}:ip:{client_ip(request)}", maximum, window)
+    rate_limiter.check(f"{action}:email:{email}", maximum, window)
 
 
 @router.post("/register", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
-async def register(data: RegisterRequest, background: BackgroundTasks, session: SessionDep) -> MessageResponse:
+async def register(data: RegisterRequest, background: BackgroundTasks, session: SessionDep, request: Request) -> MessageResponse:
     email = str(data.email).lower()
+    limit(request, "register", email, settings.register_max_per_hour, timedelta(hours=1))
     user = await get_user_by_email(session, email)
     if user and user.is_verified:
         return MessageResponse(message="If registration is available, a verification code has been sent")
@@ -67,9 +64,9 @@ async def verify_otp(data: VerifyOTPRequest, session: SessionDep) -> TokenRespon
 
 
 @router.post("/resend-otp", response_model=MessageResponse)
-async def resend_otp(data: ForgotPasswordRequest, background: BackgroundTasks, session: SessionDep) -> MessageResponse:
+async def resend_otp(data: ForgotPasswordRequest, background: BackgroundTasks, session: SessionDep, request: Request) -> MessageResponse:
     email = str(data.email).lower()
-    check_resend_limit(email)
+    limit(request, "resend", email, settings.otp_max_resend_per_hour, timedelta(hours=1))
     user = await get_user_by_email(session, email)
     if user and not user.is_verified:
         otp = await create_otp(session, user.id, OTPPurpose.REGISTER)
@@ -78,8 +75,10 @@ async def resend_otp(data: ForgotPasswordRequest, background: BackgroundTasks, s
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(data: LoginRequest, session: SessionDep) -> TokenResponse:
-    user = await get_user_by_email(session, str(data.email))
+async def login(data: LoginRequest, session: SessionDep, request: Request) -> TokenResponse:
+    email = str(data.email).lower()
+    limit(request, "login", email, settings.login_max_per_15_min, timedelta(minutes=15))
+    user = await get_user_by_email(session, email)
     if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
     if not user.is_verified:
@@ -94,8 +93,8 @@ async def refresh(data: RefreshRequest, session: SessionDep) -> TokenResponse:
     from app.core.security import decode_token
     try:
         payload = decode_token(data.refresh_token, "refresh")
-        user = await session.get(User, payload["sub"])
-    except (ValueError, TypeError):
+        user = await session.get(User, UUID(payload["sub"]))
+    except (ValueError, TypeError, KeyError):
         user = None
     if not user or not user.is_active or not user.is_verified:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid refresh token")
@@ -103,9 +102,9 @@ async def refresh(data: RefreshRequest, session: SessionDep) -> TokenResponse:
 
 
 @router.post("/forgot-password", response_model=MessageResponse)
-async def forgot_password(data: ForgotPasswordRequest, background: BackgroundTasks, session: SessionDep) -> MessageResponse:
+async def forgot_password(data: ForgotPasswordRequest, background: BackgroundTasks, session: SessionDep, request: Request) -> MessageResponse:
     email = str(data.email).lower()
-    check_resend_limit(email)
+    limit(request, "forgot", email, settings.otp_max_resend_per_hour, timedelta(hours=1))
     user = await get_user_by_email(session, email)
     if user and user.is_verified and user.is_active:
         otp = await create_otp(session, user.id, OTPPurpose.RESET_PASSWORD)
@@ -123,4 +122,3 @@ async def reset_password(data: ResetPasswordRequest, session: SessionDep) -> Mes
     session.add(user)
     await session.commit()
     return MessageResponse(message="Password reset successfully")
-
