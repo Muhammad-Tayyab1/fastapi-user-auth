@@ -1,0 +1,28 @@
+[project]
+name = "fastapi-user-auth"
+version = "0.1.0"
+description = "Async FastAPI user authentication with PostgreSQL, JWT, OTP, and Resend"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "alembic>=1.16",
+  "asyncpg>=0.30",
+  "bcrypt>=4.2,<5",
+  "email-validator>=2.2",
+  "fastapi>=0.116",
+  "passlib[bcrypt]>=1.7.4",
+  "pydantic-settings>=2.10",
+  "python-jose[cryptography]>=3.5",
+  "python-multipart>=0.0.20",
+  "resend>=2.10",
+  "sqlmodel>=0.0.24",
+  "uvicorn[standard]>=0.35",
+]
+
+[dependency-groups]
+dev = ["aiosqlite>=0.21", "httpx>=0.28", "pytest>=8.4", "pytest-asyncio>=1.1"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
+
