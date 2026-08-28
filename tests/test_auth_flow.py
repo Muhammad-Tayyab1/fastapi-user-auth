@@ -80,3 +80,36 @@ async def test_login_rate_limit(client: AsyncClient) -> None:
     assert response.status_code == 429
     assert "Retry-After" in response.headers
 
+
+async def authenticated_headers(client: AsyncClient, session: AsyncSession, email: str) -> dict[str, str]:
+    await client.post("/auth/register", json={"email": email, "password": "very-secure-password"})
+    otp = (await session.exec(select(OTP).where(OTP.purpose == "register").order_by(OTP.created_at.desc()))).first()
+    assert otp is not None
+    response = await client.post("/auth/verify-otp", json={"email": email, "code": otp.code})
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+async def test_user_owned_note_crud(client: AsyncClient, session: AsyncSession) -> None:
+    headers = await authenticated_headers(client, session, "notes@example.com")
+
+    response = await client.post("/notes/", json={"title": "First note", "content": "Initial"}, headers=headers)
+    assert response.status_code == 201
+    note_id = response.json()["id"]
+
+    response = await client.get("/notes/", headers=headers)
+    assert response.status_code == 200
+    assert [note["id"] for note in response.json()] == [note_id]
+
+    response = await client.patch(f"/notes/{note_id}", json={"title": "Updated note"}, headers=headers)
+    assert response.status_code == 200
+    assert response.json()["title"] == "Updated note"
+
+    response = await client.get(f"/notes/{note_id}", headers=headers)
+    assert response.status_code == 200
+
+    other_headers = await authenticated_headers(client, session, "other-notes@example.com")
+    assert (await client.get(f"/notes/{note_id}", headers=other_headers)).status_code == 404
+
+    response = await client.delete(f"/notes/{note_id}", headers=headers)
+    assert response.status_code == 204
+    assert (await client.get(f"/notes/{note_id}", headers=headers)).status_code == 404

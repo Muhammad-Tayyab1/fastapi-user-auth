@@ -17,6 +17,7 @@ Resend sending is skipped when `RESEND_API_KEY` is empty. Set a verified sender 
 
 - Auth: register, verify OTP, resend OTP, login, refresh, forgot/reset password
 - Users: current profile update/deactivation and paginated admin management
+- Notes: authenticated, user-owned CRUD with ownership isolation
 - Health: `GET /health`
 
 ## Tests

@@ -1,8 +1,12 @@
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import Column, DateTime, String
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, Relationship, SQLModel
+
+if TYPE_CHECKING:
+    from app.models.note import Note
 
 
 def utcnow() -> datetime:
@@ -21,4 +25,4 @@ class User(SQLModel, table=True):
     is_active: bool = True
     created_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
     updated_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
-
+    notes: list["Note"] = Relationship(back_populates="owner", cascade_delete=True)
